@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Button } from '../components/ui/button';
-import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Youtube } from 'lucide-react';
 
 const ShantyGame = () => {
@@ -44,7 +44,7 @@ const ShantyGame = () => {
     }
   }, [shanties]);
 
-  const handleGuess = () => {
+  const handleGuess = async () => {
     if (!currentShanty) return;
     
     const guess = currentGuess.toLowerCase().trim();
@@ -69,10 +69,18 @@ const ShantyGame = () => {
       setScore(prev => prev + POINTS_PER_WORD);
       setMessage('Correct! You found a word!');
       
-      // Check if all words have been guessed
       if (words.every(word => newGuessedWords.has(word))) {
         setGameWon(true);
         setShowYouTube(true);
+        try {
+          await fetch('/api/scores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Anonymous', score })
+          });
+        } catch (error) {
+          console.error('Error saving score:', error);
+        }
       }
     } else {
       setScore(prev => prev + POINTS_PER_ATTEMPT);
@@ -94,7 +102,6 @@ const ShantyGame = () => {
       setHintsRemaining(prev => prev - 1);
       setScore(prev => prev + POINTS_PER_HINT);
       
-      // Check if hint completed the game
       if (words.every(word => guessedWords.has(word) || word === randomWord)) {
         setGameWon(true);
         setShowYouTube(true);
