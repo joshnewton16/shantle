@@ -23,16 +23,16 @@ const ShantyGame = () => {
   const POINTS_PER_ATTEMPT = -10;
 
   useEffect(() => {
-    const loadShanties = async () => {
+    const loadShanty = async () => {
       try {
-        const response = await fetch('/shanties.json');
+        const response = await fetch('/api/shanties');
         const data = await response.json();
-        setShanties(data.shanties);
+        setCurrentShanty(data);
       } catch (error) {
-        console.error('Error loading shanties:', error);
+        console.error('Error loading shanty:', error);
       }
     };
-    loadShanties();
+    loadShanty();
   }, []);
 
   useEffect(() => {
