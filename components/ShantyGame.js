@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { Card } from './ui/card';
+import { CardHeader } from './ui/card';
+import { CardTitle } from './ui/card';
+import { CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Youtube } from 'lucide-react';
-import { signIn, useSession } from 'next-auth/react';
+import Keyboard from './Keyboard';
 
 const ShantyGame = () => {
-  const { data: session } = useSession();
   const [currentShanty, setCurrentShanty] = useState(null);
   const [guessedWords, setGuessedWords] = useState(new Set());
   const [guessedLetters, setGuessedLetters] = useState(new Set());
@@ -38,11 +40,17 @@ const ShantyGame = () => {
     loadShanty();
   }, []);
 
+  const checkForCompletedWords = (word, guessedLetters) => {
+    // Check if all letters in the word have been guessed
+    return word.toLowerCase().split('').every(letter => 
+      guessedLetters.has(letter.toLowerCase())
+    );
+  };
+
   const updateLettersAndScore = (guess) => {
     const newLetters = new Set(guessedLetters);
     let newLettersFound = 0;
     
-    // Add all letters from the guessed word
     guess.toLowerCase().split('').forEach(letter => {
       if (!newLetters.has(letter)) {
         newLetters.add(letter);
@@ -51,7 +59,35 @@ const ShantyGame = () => {
     });
 
     setGuessedLetters(newLetters);
+    
+    // Check for newly completed words
+    const words = currentShanty.line.split(' ');
+    const newGuessedWords = new Set(guessedWords);
+    let newWordsCompleted = 0;
+
+    words.forEach(word => {
+      if (!guessedWords.has(word.toLowerCase()) && checkForCompletedWords(word, newLetters)) {
+        newGuessedWords.add(word.toLowerCase());
+        newWordsCompleted++;
+      }
+    });
+
+    if (newWordsCompleted > 0) {
+      setGuessedWords(newGuessedWords);
+      setScore(prev => prev + (newWordsCompleted * POINTS_PER_WORD));
+      
+      // Check if game is won
+      if (words.every(word => newGuessedWords.has(word.toLowerCase()))) {
+        setGameWon(true);
+        setShowYouTube(true);
+      }
+    }
+
     return newLettersFound;
+  };
+
+  const handleLetterClick = (letter) => {
+    setCurrentGuess(prev => prev + letter.toLowerCase());
   };
 
   const handleGuess = async () => {
@@ -77,7 +113,6 @@ const ShantyGame = () => {
       newGuessedWords.add(guess);
       setGuessedWords(newGuessedWords);
       
-      // Add points for the word and any new letters
       const newLettersFound = updateLettersAndScore(guess);
       setScore(prev => prev + POINTS_PER_WORD + (newLettersFound * POINTS_PER_LETTER));
       
@@ -86,24 +121,8 @@ const ShantyGame = () => {
       if (words.every(word => newGuessedWords.has(word))) {
         setGameWon(true);
         setShowYouTube(true);
-        if (session) {
-          try {
-            await fetch('/api/scores', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                userId: session.user.id,
-                name: session.user.name, 
-                score 
-              })
-            });
-          } catch (error) {
-            console.error('Error saving score:', error);
-          }
-        }
       }
     } else {
-      // Still reveal letters even for incorrect word guesses
       const newLettersFound = updateLettersAndScore(guess);
       setScore(prev => prev + (newLettersFound * POINTS_PER_LETTER) + POINTS_PER_ATTEMPT);
       setMessage('Not a word in the shanty, but some letters might match!');
@@ -135,7 +154,18 @@ const ShantyGame = () => {
   const getDisplayWord = (word) => {
     if (guessedWords.has(word.toLowerCase())) return word;
     
-    return word.split('').map((letter, index) => 
+    // Check if all letters have been guessed
+    if (checkForCompletedWords(word, guessedLetters)) {
+      // Add to guessed words if not already there
+      if (!guessedWords.has(word.toLowerCase())) {
+        const newGuessedWords = new Set(guessedWords);
+        newGuessedWords.add(word.toLowerCase());
+        setGuessedWords(newGuessedWords);
+      }
+      return word;
+    }
+    
+    return word.split('').map((letter) => 
       guessedLetters.has(letter.toLowerCase()) ? letter : '_'
     ).join('');
   };
@@ -147,14 +177,7 @@ const ShantyGame = () => {
   return (
     <Card className="w-full max-w-xl">
       <CardHeader>
-        <CardTitle className="flex justify-between items-center">
-          <span>Daily Sea Shanty Challenge</span>
-          {!session && (
-            <Button variant="outline" onClick={() => signIn('google')}>
-              Sign in to save progress
-            </Button>
-          )}
-        </CardTitle>
+        <CardTitle>Daily Sea Shanty Challenge</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="text-center text-xl font-mono space-x-2">
@@ -170,7 +193,7 @@ const ShantyGame = () => {
         </div>
 
         {!gameOver && (
-          <div className="space-y-2">
+          <div className="space-y-4">
             <div className="flex space-x-2">
               <Input
                 type="text"
@@ -182,6 +205,13 @@ const ShantyGame = () => {
               />
               <Button onClick={handleGuess}>Guess</Button>
             </div>
+            
+            <Keyboard
+              allWords={currentShanty.line.split(' ')}
+              guessedWords={guessedWords}
+              guessedLetters={guessedLetters}
+              onLetterClick={handleLetterClick}
+            />
             
             <Button 
               onClick={getHint}
@@ -197,7 +227,7 @@ const ShantyGame = () => {
         {showYouTube && (
           <div className="text-center">
             <a
-              href={`https://www.youtube.com/watch?v=${currentShanty.youtubeId}`}
+              href={`https://www.youtube.com/watch?v=${currentShanty.youtube_id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-800"
